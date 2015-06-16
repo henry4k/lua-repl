@@ -29,7 +29,7 @@ local function readable(filename)
   return true
 end
 
-local function init()
+local function exec_rcfile()
   local home = os.getenv 'HOME'
 
   if not home then
@@ -50,4 +50,4 @@ local function init()
   chunk()
 end
 
-init()
+exec_rcfile()

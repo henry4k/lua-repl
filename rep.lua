@@ -45,6 +45,7 @@ repl:loadplugin 'history'
 repl:loadplugin 'completion'
 repl:loadplugin 'autoreturn'
 repl:loadplugin 'rcfile'
+repl:initplugins()
 
 print('Lua REPL ' .. tostring(repl.VERSION))
 repl:run()

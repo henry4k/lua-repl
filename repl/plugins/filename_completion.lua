@@ -1,7 +1,7 @@
 local utils = require 'repl.utils'
 local lfs = require 'lfs'
 
-repl:requirefeature 'completion'
+repl:dependsonfeature 'completion'
 
 local function guess_directory_separator(file_name)
   return file_name:match('/') or

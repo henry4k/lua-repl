@@ -19,6 +19,7 @@ build = {
     ['repl.utils']                             = 'repl/utils.lua',
     ['repl.sync']                              = 'repl/sync.lua',
     ['repl.console']                           = 'repl/console.lua',
+    ['repl.dependency_resolver']               = 'repl/dependency_resolver.lua',
     ['repl.plugins.autoreturn']                = 'repl/plugins/autoreturn.lua',
     ['repl.plugins.completion']                = 'repl/plugins/completion.lua',
     ['repl.plugins.example']                   = 'repl/plugins/example.lua',

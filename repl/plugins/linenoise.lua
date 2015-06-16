@@ -20,7 +20,7 @@
 
 local ln = require 'linenoise'
 
-repl:requirefeature 'console'
+repl:dependsonfeature 'console'
 
 function override:showprompt(prompt)
   self._prompt = prompt -- XXX how do we make sure other plugins don't step on this?
@@ -32,28 +32,30 @@ function override:lines()
   end
 end
 
-repl:iffeature('completion', function()
-  ln.setcompletion(function(completions, line)
-    repl:complete(line, function(completion)
-      ln.addcompletion(completions, completion)
+function init()
+  if repl:hasfeature('completion') then
+    ln.setcompletion(function(completions, line)
+      repl:complete(line, function(completion)
+        ln.addcompletion(completions, completion)
+      end)
     end)
-  end)
-end)
+  end
 
-repl:ifplugin('history', function()
-  repl:setuphistorycallbacks {
-    load = function(filename)
-      ln.historyload(filename)
-    end,
+  if repl:hasplugin('history') then
+    repl:setuphistorycallbacks {
+      load = function(filename)
+        ln.historyload(filename)
+      end,
 
-    addline = function(line)
-      ln.historyadd(line)
-    end,
+      addline = function(line)
+        ln.historyadd(line)
+      end,
 
-    save = function(filename)
-      ln.historysave(filename)
-    end,
-  }
-end)
+      save = function(filename)
+        ln.historysave(filename)
+      end,
+    }
+  end
+end
 
 features = 'input'

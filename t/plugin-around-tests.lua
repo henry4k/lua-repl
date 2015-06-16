@@ -17,7 +17,7 @@ do -- basic tests {{{
     has_called_normal = true
   end
 
-  with_plugin:loadplugin(function()
+  with_plugin:loadplugin(nil, function()
     function around:foo(orig, ...)
       has_called_around = true
       ok(not has_called_normal)
@@ -34,7 +34,7 @@ do -- basic tests {{{
   local line_no
 
   local _, err = pcall(function()
-    with_plugin:loadplugin(function()
+    with_plugin:loadplugin(nil, function()
       line_no = utils.next_line_number()
       function around:nonexistent()
       end
@@ -44,7 +44,7 @@ do -- basic tests {{{
   like(err, string.format("%d: The 'nonexistent' method does not exist", line_no))
 
   _, err = pcall(function()
-    with_plugin:loadplugin(function()
+    with_plugin:loadplugin(nil, function()
       line_no = utils.next_line_number()
       around.foo = 17
     end)
@@ -65,7 +65,7 @@ do -- arguments tests {{{
     }
   end
 
-  with_plugin:loadplugin(function()
+  with_plugin:loadplugin(nil, function()
     function around:foo(orig, ...)
       got_args = {
         n = select('#', ...),
@@ -106,7 +106,7 @@ do -- exception tests {{{
     has_called_original = true
   end
 
-  with_plugin:loadplugin(function()
+  with_plugin:loadplugin(nil, function()
     function around:foo()
       error 'uh-oh'
     end
@@ -133,7 +133,7 @@ do -- return value tests {{{
     return 1, nil, nil, nil, 5
   end
 
-  with_plugin:loadplugin(function()
+  with_plugin:loadplugin(nil, function()
     function around:foo()
       return 18
     end
@@ -165,7 +165,7 @@ do -- multiple advice, multiple plugins {{{
     calls[#calls + 1] = 'original'
   end
 
-  with_plugin:loadplugin(function()
+  with_plugin:loadplugin(nil, function()
     function around:foo(orig)
       calls[#calls + 1] = 'before_one'
       orig()
@@ -173,7 +173,7 @@ do -- multiple advice, multiple plugins {{{
     end
   end)
 
-  with_plugin:loadplugin(function()
+  with_plugin:loadplugin(nil, function()
     function around:foo(orig)
       calls[#calls + 1] = 'before_two'
       orig()
@@ -195,7 +195,7 @@ do -- multiple advice, single plugin {{{
     calls[#calls + 1] = 'original'
   end
 
-  with_plugin:loadplugin(function()
+  with_plugin:loadplugin(nil, function()
     function around:foo(orig)
       calls[#calls + 1] = 'before_one'
       orig()

@@ -3,12 +3,12 @@ local utils = require 'test-utils'
 pcall(require, 'luarocks.loader')
 require 'Test.More'
 
-plan(19)
+plan(13)
 
 do -- basic tests {{{
   local clone = repl:clone()
 
-  clone:loadplugin(function()
+  clone:loadplugin(nil, function()
     features = 'foo'
   end)
 
@@ -16,7 +16,7 @@ do -- basic tests {{{
   ok(not clone:hasfeature 'bar')
   ok(not clone:hasfeature 'baz')
 
-  clone:loadplugin(function()
+  clone:loadplugin(nil, function()
     features = { 'bar', 'baz' }
   end)
 
@@ -28,7 +28,7 @@ end -- }}}
 do -- requirefeature {{{
   local clone = repl:clone()
 
-  clone:loadplugin(function()
+  clone:loadplugin(nil, function()
     features = 'foo'
   end)
 
@@ -43,29 +43,10 @@ do -- requirefeature {{{
   like(err, tostring(line_no) .. ': required feature "bar" not present')
 end -- }}}
 
-do -- conflicts {{{
-  local clone = repl:clone()
-  local line_no
-
-  clone:loadplugin(function()
-    features = 'foo'
-  end)
-
-  local _, err = pcall(function()
-    line_no = utils.next_line_number()
-    clone:loadplugin(function()
-      features = 'foo'
-    end)
-  end)
-  like(err, tostring(line_no) .. ': feature "foo" already present')
-
-  -- XXX what about methods injected into the object?
-end -- }}}
-
 do -- clone:hasfeature {{{
   local child = repl:clone()
 
-  child:loadplugin(function()
+  child:loadplugin(nil, function()
     features = 'foo'
   end)
 
@@ -75,57 +56,11 @@ do -- clone:hasfeature {{{
   ok(child:hasfeature 'foo')
   ok(grandchild:hasfeature 'foo')
 
-  child:loadplugin(function()
+  child:loadplugin(nil, function()
     features = 'bar'
   end)
 
   ok(not repl:hasfeature 'bar')
   ok(child:hasfeature 'bar')
   ok(not grandchild:hasfeature 'bar')
-end -- }}}
-
-do -- iffeature tests {{{
-  local clone = repl:clone()
-  local has_run
-
-  clone:iffeature('foo', function()
-    has_run = true
-  end)
-
-  ok(not has_run)
-
-  clone:loadplugin(function()
-    features = 'foo'
-  end)
-
-  ok(has_run)
-
-  has_run = false
-
-  clone:iffeature('foo', function()
-    has_run = true
-  end)
-
-  ok(has_run)
-end -- }}}
-
-do -- iffeature multiple times {{{
-  local clone = repl:clone()
-  local has_run
-  local has_run2
-
-  clone:iffeature('foo', function()
-    has_run = true
-  end)
-
-  clone:iffeature('foo', function()
-    has_run2 = true
-  end)
-
-  clone:loadplugin(function()
-    features = 'foo'
-  end)
-
-  ok(has_run)
-  ok(has_run2)
 end -- }}}

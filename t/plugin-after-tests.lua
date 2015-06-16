@@ -17,7 +17,7 @@ do -- basic tests {{{
     has_called_normal = true
   end
 
-  with_plugin:loadplugin(function()
+  with_plugin:loadplugin(nil, function()
     function after:foo()
       has_called_after = true
       ok(has_called_normal)
@@ -31,7 +31,7 @@ do -- basic tests {{{
   local line_no
 
   local _, err = pcall(function()
-    with_plugin:loadplugin(function()
+    with_plugin:loadplugin(nil, function()
       line_no = utils.next_line_number()
       function after:nonexistent()
       end
@@ -41,7 +41,7 @@ do -- basic tests {{{
   like(err, string.format("%d: The 'nonexistent' method does not exist", line_no))
 
   _, err = pcall(function()
-    with_plugin:loadplugin(function()
+    with_plugin:loadplugin(nil, function()
       line_no = utils.next_line_number()
       after.foo = 17
     end)
@@ -62,7 +62,7 @@ do -- arguments tests {{{
     }
   end
 
-  with_plugin:loadplugin(function()
+  with_plugin:loadplugin(nil, function()
     function after:foo(...)
       got_args = {
         n = select('#', ...),
@@ -101,7 +101,7 @@ do -- exception tests {{{
     has_called_original = true
   end
 
-  with_plugin:loadplugin(function()
+  with_plugin:loadplugin(nil, function()
     function after:foo()
       error 'uh-oh'
     end
@@ -128,7 +128,7 @@ do -- return value tests {{{
     return 1, nil, nil, nil, 5
   end
 
-  with_plugin:loadplugin(function()
+  with_plugin:loadplugin(nil, function()
     function after:foo()
       return 18
     end
@@ -160,13 +160,13 @@ do -- multiple advice, multiple plugins {{{
     calls[#calls + 1] = 'original'
   end
 
-  with_plugin:loadplugin(function()
+  with_plugin:loadplugin(nil, function()
     function after:foo()
       calls[#calls + 1] = 'first'
     end
   end)
 
-  with_plugin:loadplugin(function()
+  with_plugin:loadplugin(nil, function()
     function after:foo()
       calls[#calls + 1] = 'second'
     end
@@ -185,7 +185,7 @@ do -- multiple advice, single plugin {{{
     calls[#calls + 1] = 'original'
   end
 
-  with_plugin:loadplugin(function()
+  with_plugin:loadplugin(nil, function()
     function after:foo()
       calls[#calls + 1] = 'first'
     end

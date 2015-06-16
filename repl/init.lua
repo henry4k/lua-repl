@@ -19,9 +19,24 @@
 -- @class repl
 --- This module implements the core functionality of a REPL.
 
-local plugins_lookup_meta = { __mode = 'k' }
+--[[ dependency resolution todo:
+  - loadplugin erweitern
+    das plugin wird in den dependency_resolver gesteckt
+  - initplugins erstellen
+    plugins sortieren und der reihe nach in ihnen init() aufrufen
+  - requireplugin und requirefeature anpassen
+  - ifplugin und iffeature können weg
+]]
 
-local repl         = { _buffer = '', _plugins = setmetatable({}, plugins_lookup_meta), _features = {}, _ifplugin = {}, _iffeature = {}, VERSION = 0.6 }
+local dependency_resolver = require 'repl.dependency_resolver'
+
+local repl         = { _buffer = '',
+                       _plugins = {},
+                       _features = {},
+                       _initialized = false,
+                       _required_plugins = {},
+                       _required_features = {},
+                       VERSION = 0.6 }
 local select       = select
 local loadstring   = loadstring
 local dtraceback   = debug.traceback
@@ -119,25 +134,13 @@ end
 --- Creates a new REPL object, so you can override methods without fear.
 -- @return A REPL clone.
 function repl:clone()
-  local plugins_copy  = tcopy(self._plugins, setmetatable({}, plugins_lookup_meta))
+  local plugins_copy  = tcopy(self._plugins, {})
   local features_copy = tcopy(self._features)
-  local ifplugin_copy = {}
-  local iffeature_copy = {}
-
-  for k, v in pairs(self._ifplugin) do
-    ifplugin_copy[k] = tcopy(v)
-  end
-
-  for k, v in pairs(self._iffeature) do
-    iffeature_copy[k] = tcopy(v)
-  end
 
   return setmetatable({
     _buffer   = '',
     _plugins  = plugins_copy,
-    _features = features_copy,
-    _ifplugin = ifplugin_copy,
-    _iffeature = iffeature_copy,
+    _features = features_copy
   }, { __index = self })
 end
 
@@ -164,7 +167,7 @@ end
 --- Checks whether this REPL object has loaded the given plugin.
 -- @param plugin The plugin that the REPL may have loaded.
 function repl:hasplugin(plugin)
-  return self._plugins[plugin]
+  return self._plugins[tostring(plugin)]
 end
 
 function repl:hasfeature(feature)
@@ -177,36 +180,14 @@ function repl:requirefeature(feature)
   end
 end
 
-function repl:ifplugin(plugin, action)
-  if self:hasplugin(plugin) then
-    action()
-  else
-    local pending_actions = self._ifplugin[plugin]
-
-    if not pending_actions then
-      pending_actions        = {}
-      self._ifplugin[plugin] = pending_actions
-    end
-
-    pending_actions[#pending_actions + 1] = action
-  end
+function repl:dependsonplugin(plugin)
+  assert(not self._initialized, 'can\'t be called after plugin initialization')
+  table.insert(self._required_plugins, plugin)
 end
 
---- If the given feature has been loaded, call `action`.  Otherwise, if the
--- feature is ever loaded in the future, call `action` after that loading occurs.
-function repl:iffeature(feature, action)
-  if self:hasfeature(feature) then
-    action()
-  else
-    local pending_features = self._iffeature[feature]
-
-    if not pending_features then
-      pending_features         = {}
-      self._iffeature[feature] = pending_features
-    end
-
-    pending_features[#pending_features + 1] = action
-  end
+function repl:dependsonfeature(feature)
+  assert(not self._initialized, 'can\'t be called after plugin initialization')
+  table.insert(self._required_features, feature)
 end
 
 local function setup_before(repl)
@@ -340,17 +321,26 @@ local function findchunk(name)
   error('unable to locate plugin', 3)
 end
 
-function repl:loadplugin(chunk)
-  if self:hasplugin(chunk) then
-    error(sformat('plugin %q has already been loaded', tostring(chunk)), 2)
+local function ro_globals(_, key, _)
+  error(sformat('global environment is read-only (key = %q)', key), 2)
+end
+
+---
+-- @param name
+-- @param chunk
+--
+-- TODO
+function repl:loadplugin(name, chunk)
+  if not chunk then
+    chunk = findchunk('repl.plugins.' .. name)
   end
-  self._plugins[chunk] = true
 
-  local plugin_actions  = self._ifplugin[chunk]
-  self._ifplugin[chunk] = nil
+  if not name then
+    name = tostring(chunk)
+  end
 
-  if type(chunk) == 'string' then
-    chunk = findchunk('repl.plugins.' .. chunk)
+  if self:hasplugin(name) then
+    error(sformat('plugin %q has already been loaded', name), 2)
   end
 
   local plugin_env = {
@@ -362,13 +352,11 @@ function repl:loadplugin(chunk)
     init     = function() end,
   }
 
-  local function ro_globals(_, key, _)
-    error(sformat('global environment is read-only (key = %q)', key), 2)
-  end
-
   plugin_env._G       = plugin_env
   plugin_env.features = {}
   setmetatable(plugin_env, { __index = _G, __newindex = ro_globals })
+
+  self._plugins[name] = plugin_env
 
   setfenv(chunk, plugin_env)
   chunk()
@@ -377,28 +365,61 @@ function repl:loadplugin(chunk)
 
   if type(features) == 'string' then
     features = { features }
+    plugin_env.features = features
   end
 
   for _, feature in ipairs(features) do
-    if self._features[feature] then
-      error(sformat('feature %q already present', feature), 2)
-    end
-
     self._features[feature] = true
+  end
+end
 
-    local feature_actions    = self._iffeature[feature]
-    self._iffeature[feature] = nil
-    if feature_actions then
-      for _, action in ipairs(feature_actions) do
-        action()
+function repl:find_plugins_that_feature(feature)
+  local found_plugins = {}
+  for plugin_name, plugin_environment in pairs(self._plugins) do
+    for _, plugin_feature in ipairs(plugin_environment.features) do
+      if plugin_feature == feature then
+        table.insert(found_plugins, plugin_name)
+      end
+    end
+  end
+  return found_plugins
+end
+
+local function collect_plugin_dependencies(repl, plugin_name, plugin_repl)
+  local dependencies = {}
+
+  for _, required_plugin in ipairs(plugin_repl._required_plugins) do
+    table.insert(dependencies, required_plugin)
+  end
+
+  for _, required_feature in ipairs(plugin_repl._required_features) do
+    local plugins = repl:find_plugins_that_feature(required_feature)
+    if #plugins == 0 then
+      error(sformat('No plugin provides the feature %q which is required by %q', required_feature, plugin_name))
+    else
+      for _, plugin in ipairs(plugins) do
+        table.insert(dependencies, plugin)
       end
     end
   end
 
-  if plugin_actions then
-    for _, action in ipairs(plugin_actions) do
-      action()
-    end
+  return dependencies
+end
+
+function repl:initplugins()
+  local resolver = dependency_resolver()
+
+  for plugin_name, plugin_environment in pairs(self._plugins) do
+    local plugin_repl = plugin_environment.repl
+    local dependencies = collect_plugin_dependencies(self, plugin_name, plugin_repl)
+    resolver:add(plugin_name, dependencies)
+  end
+
+  local init_list = resolver:sort()
+
+  for _, plugin_name in ipairs(init_list) do
+    local plugin_environment = self._plugins[plugin_name]
+    plugin_environment.init()
   end
 end
 

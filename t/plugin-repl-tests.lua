@@ -17,7 +17,7 @@ do -- basic tests {{{
   local line_no
 
   local _, err = pcall(function()
-    with_plugin:loadplugin(function()
+    with_plugin:loadplugin(nil, function()
       line_no = utils.next_line_number()
       function repl:foo()
       end
@@ -26,7 +26,7 @@ do -- basic tests {{{
 
   like(err, string.format("%d: The 'foo' method already exists", line_no))
 
-  with_plugin:loadplugin(function()
+  with_plugin:loadplugin(nil, function()
     function repl:bar()
       return 17
     end
@@ -34,7 +34,7 @@ do -- basic tests {{{
 
   is(with_plugin:bar(), 17)
 
-  with_plugin:loadplugin(function()
+  with_plugin:loadplugin(nil, function()
     repl.baz = 18
   end)
 
@@ -45,13 +45,13 @@ do -- conflict tests {{{
   local clone = r:clone()
   local line_no
 
-  clone:loadplugin(function()
+  clone:loadplugin(nil, function()
     function repl:foo()
     end
   end)
 
   local _, err = pcall(function()
-    clone:loadplugin(function()
+    clone:loadplugin(nil, function()
       line_no = utils.next_line_number()
       function repl:foo()
       end
@@ -64,11 +64,11 @@ end -- }}}
 do -- proxy tests {{{
   local clone = r:clone()
 
-  clone:loadplugin(function()
+  clone:loadplugin(nil, function()
     features = 'foo'
   end)
 
-  clone:loadplugin(function()
+  clone:loadplugin(nil, function()
     ok(repl:hasfeature 'foo')
   end)
 end -- }}}

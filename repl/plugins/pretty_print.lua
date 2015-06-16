@@ -242,7 +242,7 @@ local function dump(params)
   end
 end
 
-repl:requirefeature 'console'
+repl:dependsonfeature 'console'
 
 function override:displayresults(results)
   local pieces = {}

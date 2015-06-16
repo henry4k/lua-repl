@@ -30,7 +30,7 @@ function resolver:__call()
 end
 
 --- Test whether the list contains an entry called `name`.
-function resolver.prototype:has( name )
+function resolver.prototype:has(name)
   return self.entry_map[name] ~= nil
 end
 
@@ -43,16 +43,16 @@ end
 -- @param[opt] dependencies
 -- A list of entry names that the added entry depends on.
 --
-function resolver.prototype:add( name, dependencies )
+function resolver.prototype:add(name, dependencies)
   assert(not self.entry_map[name], 'Entry '..name..' already exists.')
   dependencies = dependencies or {}
   self.entry_map[name] = dependencies
 end
 
-local function resolve_transitive_dependencies( entry_map,
-                                                entry_name,
-                                                resolved_dependencies,
-                                                dependencies )
+local function resolve_transitive_dependencies(entry_map,
+                                               entry_name,
+                                               resolved_dependencies,
+                                               dependencies)
   for _, dependency in ipairs(dependencies) do
     if not resolved_dependencies[dependency] then
       local dependencies2 = entry_map[dependency]
@@ -76,22 +76,22 @@ end
 --
 function resolver.prototype:sort()
 
-  local resolvedentry_map = {}
+  local resolved_entry_map = {}
   for name, dependencies in pairs(self.entry_map) do
     local resolved_dependencies = {}
     resolve_transitive_dependencies(self.entry_map,
                                     name,
                                     resolved_dependencies,
                                     dependencies)
-    resolvedentry_map[name] = resolved_dependencies
+    resolved_entry_map[name] = resolved_dependencies
   end
 
   local entries = {}
-  for name, dependencies in pairs(resolvedentry_map) do
+  for name, dependencies in pairs(resolved_entry_map) do
     table.insert(entries, {name=name, dependencies=dependencies})
   end
 
-  table.sort(entries, function( a, b )
+  table.sort(entries, function(a, b)
     local a_depends_on_b = b.dependencies[a.name]
     local b_depends_on_a = a.dependencies[b.name]
 

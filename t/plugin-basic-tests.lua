@@ -3,21 +3,21 @@ local utils = require 'test-utils'
 pcall(require, 'luarocks.loader')
 require 'Test.More'
 
-plan(21)
+plan(20)
 
 local clone = repl:clone()
 
 do -- basic tests {{{
   local loaded
 
-  clone:loadplugin(function()
+  clone:loadplugin(nil, function()
     loaded = true
   end)
 
   ok(loaded)
 
   error_like(function()
-    clone:loadplugin(function()
+    clone:loadplugin(nil, function()
       error 'uh-oh'
     end)
   end, 'uh%-oh')
@@ -30,21 +30,21 @@ do -- loading the same plugin twice {{{
 
   local line_no
 
-  clone:loadplugin(plugin)
+  clone:loadplugin(nil, plugin)
   local _, err = pcall(function()
     line_no = utils.next_line_number()
-    clone:loadplugin(plugin)
+    clone:loadplugin(nil, plugin)
   end)
   like(err, tostring(line_no) .. ': plugin "function:%s+%S+" has already been loaded')
 
   _, err = pcall(function()
     line_no = utils.next_line_number()
-    clone:clone():loadplugin(plugin)
+    clone:clone():loadplugin(nil, plugin)
   end)
   like(err, tostring(line_no) .. ': plugin "function:%s+%S+" has already been loaded')
 
-  repl:clone():loadplugin(plugin)
-  repl:clone():loadplugin(plugin)
+  repl:clone():loadplugin(nil, plugin)
+  repl:clone():loadplugin(nil, plugin)
 end -- }}}
 
 do -- loading plugins by name {{{
@@ -88,7 +88,7 @@ do -- hasplugin tests {{{
   local plugin = function()
   end
 
-  child:loadplugin(plugin)
+  child:loadplugin(nil, plugin)
 
   local grandchild = child:clone()
 
@@ -99,7 +99,7 @@ do -- hasplugin tests {{{
   plugin = function()
   end
 
-  child:loadplugin(plugin)
+  child:loadplugin(nil, plugin)
 
   ok(not repl:hasplugin(plugin))
   ok(child:hasplugin(plugin))
@@ -111,7 +111,7 @@ do -- global tests {{{
   local line_no
 
   local _, err = pcall(function()
-    clone:loadplugin(function()
+    clone:loadplugin(nil, function()
       line_no = utils.next_line_number()
       foo     = 17
     end)
@@ -120,59 +120,82 @@ do -- global tests {{{
   like(err, tostring(line_no) .. ': global environment is read%-only %(key = "foo"%)')
 
   _, err = pcall(function()
-    clone:loadplugin(function()
+    clone:loadplugin(nil, function()
       line_no = utils.next_line_number()
       _G.foo  = 17
     end)
   end)
 
   like(err, tostring(line_no) .. ': global environment is read%-only %(key = "foo"%)')
-end
-
-do -- ifplugin tests {{{
-  local clone = repl:clone()
-  local has_run
-
-  package.preload['repl.plugins.test'] = function()
-  end
-
-  clone:ifplugin('test', function()
-    has_run = true
-  end)
-
-  ok(not has_run)
-
-  clone:loadplugin 'test'
-
-  ok(has_run)
-
-  has_run = false
-
-  clone:ifplugin('test', function()
-    has_run = true
-  end)
-
-  ok(has_run)
 end -- }}}
 
-do -- ifplugin multiple times {{{
+do -- plugin initialization {{{
   local clone = repl:clone()
-  local has_run
-  local has_run2
 
-  package.preload['repl.plugins.test'] = function()
-  end
+  local initialized = false
 
-  clone:ifplugin('test', function()
-    has_run = true
+  clone:loadplugin(nil, function()
+    function init()
+      initialized = true
+    end
   end)
 
-  clone:ifplugin('test', function()
-    has_run2 = true
+  ok(not initialized)
+
+  clone:initplugins()
+
+  ok(initialized)
+end -- }}}
+
+do -- correct resolution of plugin dependencies {{{
+  local clone = repl:clone()
+
+  local a_initialized = false
+  local b_initialized_after_a = false
+
+  clone:loadplugin('plugin b', function()
+    repl:dependsonplugin('plugin a')
+    function init()
+      if a_initialized then
+        b_initialized_after_a = true
+      end
+    end
   end)
 
-  clone:loadplugin 'test'
+  clone:loadplugin('plugin a', function()
+    function init()
+      a_initialized = true
+    end
+  end)
 
-  ok(has_run)
-  ok(has_run2)
+  clone:initplugins()
+
+  ok(b_initialized_after_a, 'plugins are initialized after their dependencies have been initialized')
+end -- }}}
+
+do -- correct resolution of feature dependencies {{{
+  local clone = repl:clone()
+
+  local a_initialized = false
+  local b_initialized_after_a = false
+
+  clone:loadplugin('plugin b', function()
+    repl:dependsonfeature('foo feature')
+    function init()
+      if a_initialized then
+        b_initialized_after_a = true
+      end
+    end
+  end)
+
+  clone:loadplugin('plugin a', function()
+    features = 'foo feature'
+    function init()
+      a_initialized = true
+    end
+  end)
+
+  clone:initplugins()
+
+  ok(b_initialized_after_a, 'plugins are initialized after their dependencies have been initialized')
 end -- }}}
